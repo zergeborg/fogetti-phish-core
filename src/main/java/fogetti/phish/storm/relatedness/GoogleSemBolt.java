@@ -107,6 +107,7 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
 	public void execute(Tuple input) {
 		String segment = input.getStringByField("word");
 		String encodedURL = input.getStringByField("url");
+        int nextPick = new Random().nextInt(proxyList.size());
         try (Jedis jedis = (Jedis) getInstance()) {
             googleSegmentLookupCnt.incr();
             String segments = jedis.get(REDIS_SEGMENT_PREFIX + segment);
@@ -116,7 +117,7 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
             }
             if (terms == null || terms.terms == null) {
                 logger.debug("Cached Google result not found for [segment={}]", segment);
-                terms = calculateSearches(segment);
+                terms = calculateSearches(segment, nextPick);
                 googleTrendSuccess.incr();
             } else {
                 logger.debug("Cached Google result found for [segment={}]", segment);
@@ -138,6 +139,7 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
             logger.error("Google Trend request failed [reason={}]", "Null pointer");
             googleTrendFailure.incr();
             collector.fail(input);
+            proxyList.remove(nextPick);
         } catch (IOException e) {
             if (e.getMessage() == null) {
                 logger.error("Google Trend request failed", e);
@@ -146,12 +148,12 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
             }
             googleTrendFailure.incr();
             collector.fail(input);
+            proxyList.remove(nextPick);
         }
 	}
 
-	private Terms calculateSearches(String segment) throws IOException {
+	private Terms calculateSearches(String segment, int nextPick) throws IOException {
 	    Terms result = new Terms();
-		int nextPick = new Random().nextInt(proxyList.size());
 		String nextProxy = proxyList.get(nextPick);
 		String[] hostAndPort = nextProxy.split(":");
         ProxyConfig proxyConfig = new ProxyConfig(hostAndPort[0],Integer.parseInt(hostAndPort[1]));
