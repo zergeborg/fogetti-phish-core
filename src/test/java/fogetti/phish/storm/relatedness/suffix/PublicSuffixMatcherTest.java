@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
 import fogetti.phish.storm.exception.URLMatchingFailedException;
@@ -100,4 +101,24 @@ public class PublicSuffixMatcherTest {
 		String ps = reader.findPublicSuffix("fogetti.phis.storm.paragliding.aero");
 		assertEquals("The returned public suffix was not 'paragliding.aero'", "paragliding.aero", ps);
 	}
+
+	@Test
+    public void funkyURL() throws Exception {
+        // Given
+        String psdat = new File(this.getClass().getClassLoader().getResource("public-suffix-list.dat").toURI()).getAbsolutePath();
+        PublicSuffixMatcher reader = new PublicSuffixMatcher(psdat);
+	    
+        // When
+        reader.load();
+        String URL = "www.municode.com/library/mi/benton_charter_township,_(berrien_co.)/code_of_ordinances";
+        String mldps = URL.split("/")[0];
+        String ps = reader.findPublicSuffix(mldps);
+        String beforeLast = StringUtils.substringBeforeLast(mldps, "." + ps);
+        String mld = beforeLast;
+        if (beforeLast.contains(".")) mld = StringUtils.substringAfterLast(beforeLast, ".");
+        
+        // Then
+        assertEquals("The returned mld was wrong", "municode", mld);
+        assertEquals("The returned mldps was wrong", "municode.com", mld+"."+ps);
+    }
 }
