@@ -145,7 +145,6 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
             logger.error("Google Trend request failed [reason={}]", "Null pointer");
             googleTrendFailure.incr();
             collector.fail(input);
-            if(proxyList.size() > 100) proxyList.remove(nextPick);
         } catch (IOException e) {
             if (e.getMessage() == null) {
                 logger.error("Google Trend request failed", e);
@@ -154,7 +153,6 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
             }
             googleTrendFailure.incr();
             collector.fail(input);
-            if(proxyList.size() > 100) proxyList.remove(nextPick);
         }
 	}
 
