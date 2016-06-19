@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.routines.UrlValidator;
@@ -145,6 +146,11 @@ public class URLSpout extends BaseRichSpout {
 			if (!saved(URLWithScheme)) doNextTuple(URLWithScheme);
 			else spoutSkipped.incr();
 		}
+		try {
+            TimeUnit.SECONDS.sleep(15);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 	}
 
     private boolean saved(String longURL) {
