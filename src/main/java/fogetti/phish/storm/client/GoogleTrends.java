@@ -11,6 +11,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import com.gargoylesoftware.htmlunit.BrowserVersion;
+import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.NicelyResynchronizingAjaxController;
 import com.gargoylesoftware.htmlunit.Page;
 import com.gargoylesoftware.htmlunit.ProxyConfig;
@@ -83,17 +84,23 @@ public class GoogleTrends {
 
     private String buildHtml(String query) throws IOException {
         webClient.getOptions().setProxyConfig(proxyConfig);
-        Page page = webClient.getPage(query);
-
-        if (page.isHtmlPage()) {
-            final HtmlPage htmlPage = (HtmlPage) page;
-            final String html = htmlPage.asXml();
-            return html;
-        } else if (page instanceof TextPage) {
-            final TextPage textPage = (TextPage) page;
-            final String html = textPage.getContent();
-            return html;
-        } else {
+        try {
+            Page page = webClient.getPage(query);
+            if (page.isHtmlPage()) {
+                final HtmlPage htmlPage = (HtmlPage) page;
+                final String html = htmlPage.asXml();
+                return html;
+            } else if (page instanceof TextPage) {
+                final TextPage textPage = (TextPage) page;
+                final String html = textPage.getContent();
+                return html;
+            } else {
+                return "";
+            }
+        } catch(FailingHttpStatusCodeException e) {
+            if (e.getStatusCode() == 500) {
+                return e.getResponse().getContentAsString();
+            }
             return "";
         }
     }
@@ -103,7 +110,7 @@ public class GoogleTrends {
         Elements errorH2 = doc.select("body > h2");
         if (errorH1.size() > 0 && errorH2.size() > 0) {
             if (errorH1.get(0).text().contains("Internal Server Error") &&
-                    errorH1.get(0).text().contains("Error 500")) {
+                    errorH2.get(0).text().contains("Error 500")) {
                 throw new Google500Exception();
             }
         }
