@@ -18,6 +18,7 @@ import com.gargoylesoftware.htmlunit.TextPage;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
 
+import fogetti.phish.storm.exception.Google500Exception;
 import fogetti.phish.storm.exception.NotEnoughSearchVolumeException;
 import fogetti.phish.storm.exception.QuotaLimitException;
 
@@ -98,6 +99,14 @@ public class GoogleTrends {
     }
 
     private void findError(Document doc) {
+        Elements errorH1 = doc.select("body > h1");
+        Elements errorH2 = doc.select("body > h2");
+        if (errorH1.size() > 0 && errorH2.size() > 0) {
+            if (errorH1.get(0).text().contains("Internal Server Error") &&
+                    errorH1.get(0).text().contains("Error 500")) {
+                throw new Google500Exception();
+            }
+        }
         Elements mainElem = doc.select(".trends-component-error");
         if (mainElem.size() > 0) {
             Element table = mainElem.get(0);

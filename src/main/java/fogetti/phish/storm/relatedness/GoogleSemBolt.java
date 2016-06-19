@@ -31,6 +31,7 @@ import com.gargoylesoftware.htmlunit.WebClient;
 import fogetti.phish.storm.client.GoogleTrends;
 import fogetti.phish.storm.client.GoogleTrends.Builder;
 import fogetti.phish.storm.client.Terms;
+import fogetti.phish.storm.exception.Google500Exception;
 import fogetti.phish.storm.exception.NotEnoughSearchVolumeException;
 import fogetti.phish.storm.exception.QuotaLimitException;
 import redis.clients.jedis.Jedis;
@@ -131,6 +132,11 @@ public abstract class GoogleSemBolt extends AbstractRedisBolt {
             collector.fail(input);
             googleTrendOverLimit.incr();
         } catch(NotEnoughSearchVolumeException e) {
+            Terms terms = new Terms();
+            collector.emit(input, new Values(terms, segment, encodedURL));
+            logger.debug("Acking [{}]", input);
+            collector.ack(input);
+        } catch(Google500Exception e) {
             Terms terms = new Terms();
             collector.emit(input, new Values(terms, segment, encodedURL));
             logger.debug("Acking [{}]", input);
