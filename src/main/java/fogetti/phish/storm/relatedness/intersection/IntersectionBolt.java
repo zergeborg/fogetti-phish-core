@@ -51,7 +51,7 @@ public class IntersectionBolt extends AbstractRedisBolt {
 
 	@Override
 	public void execute(Tuple input) {
-		String url = input.getStringByField("url");
+		String url = getInputURL(input);
         try (Jedis jedis = (Jedis) getInstance()) {
             AckResult ackResult = findAckResult(url, jedis);
             if (ackResult == null) {
@@ -67,6 +67,10 @@ public class IntersectionBolt extends AbstractRedisBolt {
             collector.fail(input);
         }
 	}
+
+    protected String getInputURL(Tuple input) {
+        return input.getStringByField("url");
+    }
 
     private AckResult findAckResult(String url, Jedis jedis) throws IOException {
         AckResult result = null;
