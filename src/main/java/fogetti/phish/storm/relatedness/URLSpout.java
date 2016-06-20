@@ -197,7 +197,7 @@ public class URLSpout extends BaseRichSpout {
             ackRegular(shortURL);
             return;
         }
-        ackIntersection(URL);
+        ackIntersection(removeTail(URL));
 	}
 
     private void ackIntersection(String URL) {
@@ -226,8 +226,14 @@ public class URLSpout extends BaseRichSpout {
 	@Override
 	public void fail(Object encodedURL) {
 	    try {
-	        String URL = getURL(encodedURL.toString());
-	        String resURL = StringUtils.removeStart(URL, "result://");
+	        String resURL = getURL(encodedURL.toString());
+	        if (resURL.startsWith("result://")) {
+	            resURL = StringUtils.removeStart(resURL, "result://");
+	        } else if (resURL.startsWith("intersect://")) {
+                resURL = StringUtils.removeStart(resURL, "intersect://");
+            } else {
+                resURL = removeTail(resURL);
+            }
 	        logger.debug("Message [msg={}] failed", resURL);
 	        if (urlValidator.isValid(resURL)) {
 	            logger.warn("Requeueing [msg={}]", resURL);
@@ -244,7 +250,11 @@ public class URLSpout extends BaseRichSpout {
     private String getURL(String encodedURL) {
         byte[] decoded = decoder.decode(encodedURL);
         String longURL = new String(decoded, StandardCharsets.UTF_8);
-        String URL = StringUtils.substringBeforeLast(longURL, "#");
+        return longURL;
+    }
+    
+    private String removeTail(String shortURL) {
+        String URL = StringUtils.substringBeforeLast(shortURL, "#");
         return URL;
     }
 
