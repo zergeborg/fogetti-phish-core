@@ -1,13 +1,8 @@
 package fogetti.phish.storm.relatedness.intersection;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Base64.Decoder;
-import java.util.Base64.Encoder;
 import java.util.Map;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.storm.metric.api.CountMetric;
 import org.apache.storm.redis.bolt.AbstractRedisBolt;
 import org.apache.storm.redis.common.config.JedisPoolConfig;
@@ -31,8 +26,6 @@ public class IntersectionBolt extends AbstractRedisBolt {
 	private static final Logger logger = LoggerFactory.getLogger(IntersectionBolt.class);
     private static final String REDIS_SEGMENT_PREFIX = "segment:";
     private ObjectMapper mapper;
-    private Decoder decoder;
-    private Encoder encoder;
     private final int METRICS_WINDOW = 10;
     private transient CountMetric intersectionIndexKeyUpdated;
     private transient CountMetric intersectionIndexKeyCreated;
@@ -45,8 +38,6 @@ public class IntersectionBolt extends AbstractRedisBolt {
 	@SuppressWarnings("rawtypes")
 	public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
 		super.prepare(stormConf, context, collector);
-		this.decoder = Base64.getDecoder();
-		this.encoder = Base64.getEncoder();
 		this.mapper = new ObjectMapper();
         intersectionIndexKeyUpdated = new CountMetric();
         context.registerMetric("int-index-key-updated",
@@ -60,7 +51,7 @@ public class IntersectionBolt extends AbstractRedisBolt {
 
 	@Override
 	public void execute(Tuple input) {
-		String url = getEncodedShortURL(input);
+		String url = input.getStringByField("url");
         try (Jedis jedis = (Jedis) getInstance()) {
             AckResult ackResult = findAckResult(url, jedis);
             if (ackResult == null) {
@@ -110,20 +101,6 @@ public class IntersectionBolt extends AbstractRedisBolt {
             terms = mapper.readValue(segments, Terms.class);
         }
         return terms;
-    }
-
-    private String getEncodedShortURL(Tuple input) {
-        String URL = getInputURL(input);
-		String encodedShortURL = encoder.encodeToString(URL.getBytes(StandardCharsets.UTF_8));
-        return encodedShortURL;
-    }
-
-    protected String getInputURL(Tuple input) {
-        String encodedURL = input.getStringByField("url");
-        byte[] decoded = decoder.decode(encodedURL);
-        String longURL = new String(decoded, StandardCharsets.UTF_8);
-        String URL = StringUtils.substringBeforeLast(longURL, "#");
-        return URL;
     }
 
 	private void updateSegmentIndex(Tuple input, Terms terms, String segment, String url, Jedis jedis) {
