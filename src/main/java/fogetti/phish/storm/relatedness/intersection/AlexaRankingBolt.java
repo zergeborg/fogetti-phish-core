@@ -83,7 +83,9 @@ public class AlexaRankingBolt extends BaseRichBolt {
     @Override
     public void execute(Tuple input) {
         String URL = getURL(input);
+        logger.info("Ranking URL [{}]", URL);
         String ranking = initRanking(URL);
+        logger.info("Alexa ranking [{}]", ranking);
         if (StringUtils.isBlank(ranking)) {
             collector.fail(input);
         } else {

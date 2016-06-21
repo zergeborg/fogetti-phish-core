@@ -86,6 +86,7 @@ public class ResultBolt extends AbstractRedisBolt {
     public void execute(Tuple input) {
         String url = input.getStringByField("url");
         String ranking = input.getStringByField("ranking");
+        logger.info("Saving result for URL [{}] and ranking [{}]", url, ranking);
         try {
             AckResult result = findAckResult(url);
             URLSegments segments = findSegments(result);
