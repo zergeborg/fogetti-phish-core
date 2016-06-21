@@ -159,9 +159,10 @@ public class URLSpout extends BaseRichSpout {
 
 	private void doNextTuple(String URLWithScheme) {
 	    String URL = URLWithScheme + "#" +System.currentTimeMillis();
-        String encodedURL = encoder.encodeToString(URL.getBytes(StandardCharsets.UTF_8));
-        logger.info("Emitting [{}]", encodedURL);
-		collector.emit(new Values(encodedURL), encodedURL);
+        String encodedShortURL = encoder.encodeToString(URLWithScheme.getBytes(StandardCharsets.UTF_8));
+        String encodedLongURL = encoder.encodeToString(URL.getBytes(StandardCharsets.UTF_8));
+        logger.info("Emitting [{}]", encodedLongURL);
+		collector.emit(new Values(encodedShortURL), encodedLongURL);
 		spoutEmitted.incr();
 	}
 

@@ -5,7 +5,6 @@ import java.io.FileReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Base64.Decoder;
 import java.util.Base64.Encoder;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +45,6 @@ public class MatcherBolt extends AbstractRedisBolt {
     private String psDataFile;
     private AckResult ack;
     private ObjectMapper mapper;
-    private Decoder decoder;
     private Encoder encoder;
     private String[] schemes = {"http","https"};
     private UrlValidator urlValidator;
@@ -72,7 +70,6 @@ public class MatcherBolt extends AbstractRedisBolt {
         super.prepare(stormConf, context, collector);
         this.lookup = readCountFromFile();
         this.mapper = new ObjectMapper();
-        this.decoder = Base64.getDecoder();
         this.encoder = Base64.getEncoder();
         this.urlValidator = new UrlValidator(schemes);
         matcherEmittedRDSegment = new CountMetric();
@@ -120,32 +117,24 @@ public class MatcherBolt extends AbstractRedisBolt {
         try {
             createNewAckResult();
             String encodedURL = input.getStringByField("url");
-            String shortURL = getURL(encodedURL);
-            if (urlValidator.isValid(shortURL)) {
-                ack.URL = shortURL;
-                calculate(shortURL);
+            if (urlValidator.isValid(encodedURL)) {
+                ack.URL = encodedURL;
+                calculate(encodedURL);
                 try (Jedis jedis = (Jedis) getInstance()) {
-                    if (saveResult(shortURL, jedis)) {
+                    if (saveResult(encodedURL, jedis)) {
                         emit(input, encodedURL, jedis);
                     } else {
                         collector.fail(input);
                     }
                 }
             } else {
-                logger.warn("Invalid URL [{}]. Skipping emission", shortURL);
+                logger.warn("Invalid URL [{}]. Skipping emission", encodedURL);
                 collector.fail(input);
             }
         } catch(Exception e) {
             logger.error("Unexpected error", e);
             collector.fail(input);
         }
-    }
-
-    private String getURL(String encodedURL) {
-        byte[] decoded = decoder.decode(encodedURL);
-        String longURL = new String(decoded, StandardCharsets.UTF_8);
-        String URL = StringUtils.substringBeforeLast(longURL, "#");
-        return URL;
     }
 
     void createNewAckResult() {
