@@ -1,20 +1,16 @@
 package fogetti.phish.storm.relatedness.intersection;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.powermock.core.classloader.annotations.PowerMockIgnore;
@@ -41,12 +37,14 @@ public class IntersectionResultTest {
     private IRequest request;
     private String url;
     private OkHttpClient client;
+    private String ranking;
     
     @Before
     public void setUp() throws Exception {
         request = mock(IRequest.class);
         url = "alma.com";
         client = WebClientUtil.getMockedClient("alexa-result.xml");
+        ranking = "1";
     }
 
     private List<Term> termsOf(String... string) {
@@ -66,7 +64,7 @@ public class IntersectionResultTest {
 		String login = "login";
         loginAssociated.add(termsOf(login));
 		REMTermindex.put(login, loginAssociated);
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -90,7 +88,7 @@ public class IntersectionResultTest {
 		loginAssociated.add(termsOf("login korte".split("\\s+")));
 		loginAssociated.add(termsOf("login korte".split("\\s+")));
 		REMTermindex.put(login, loginAssociated);
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -114,7 +112,7 @@ public class IntersectionResultTest {
 		loginAssociated.add(termsOf("login barack".split("\\s+")));
 		loginAssociated.add(termsOf("login cseresznye".split("\\s+")));
 		REMTermindex.put(login, loginAssociated);
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -134,7 +132,7 @@ public class IntersectionResultTest {
 		Terms loginAssociated = new Terms();
 		String login = "login";
 		REMTermindex.put(login, loginAssociated);
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -156,7 +154,7 @@ public class IntersectionResultTest {
 		String login = "login";
 		REMTermindex.put(login, loginAssociated);
 		loginAssociated.add(termsOf("same same same same".split("\\s+")));
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -178,7 +176,7 @@ public class IntersectionResultTest {
 		String login = "login";
 		REMTermindex.put(login, loginAssociated);
 		loginAssociated.add(termsOf("five six seven eight".split("\\s+")));
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), REMTermindex, new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -200,7 +198,7 @@ public class IntersectionResultTest {
 		String googlemldps = "www.google.com";
 		googleMldpsAssociated.add(termsOf(googlemldps));
 		RDTermindex.put(googlemldps, googleMldpsAssociated);
-		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -222,7 +220,7 @@ public class IntersectionResultTest {
 		String googlemldps = "www.google.com";
 		googleMldpsAssociated.add(termsOf("korte korte".split("\\s+")));
 		RDTermindex.put(googlemldps, googleMldpsAssociated);
-		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -244,7 +242,7 @@ public class IntersectionResultTest {
 		String googlemldps = "www.google.com";
 		googleMldpsAssociated.add(termsOf("barack cseresznye".split("\\s+")));
 		RDTermindex.put(googlemldps, googleMldpsAssociated);
-		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -264,7 +262,7 @@ public class IntersectionResultTest {
 		Terms googleMldpsAssociated = new Terms();
 		String googlemldps = "www.google.com";
 		RDTermindex.put(googlemldps, googleMldpsAssociated);
-		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -286,7 +284,7 @@ public class IntersectionResultTest {
 		String googlemldps = "www.google.com";
 		googleMldpsAssociated.add(termsOf("korte korte".split("\\s+")));
 		RDTermindex.put(googlemldps, googleMldpsAssociated);
-		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -308,7 +306,7 @@ public class IntersectionResultTest {
 		String googlemldps = "www.google.com";
 		googleMldpsAssociated.add(termsOf("three four".split("\\s+")));
 		RDTermindex.put(googlemldps, googleMldpsAssociated);
-		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(RDTermindex, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -321,7 +319,7 @@ public class IntersectionResultTest {
 	@Test
 	public void REMTermIndex_Empty() throws Exception {
 		// Given
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -334,7 +332,7 @@ public class IntersectionResultTest {
 	@Test
 	public void MLDTermIndex_Empty() throws Exception {
 		// Given
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -347,7 +345,7 @@ public class IntersectionResultTest {
 	@Test
 	public void MLDPSTermIndex_Empty() throws Exception {
 		// Given
-		IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+		IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
 		// When
 		result.init();
@@ -358,76 +356,13 @@ public class IntersectionResultTest {
 	}
 	
 	@Test
-    public void alexaSocketTimeout() throws Exception {
-        // Given
-        IRequest request = new ErrorThrowingRequest(new SocketTimeoutException());
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
-
-        // When
-        result.init();
-
-        // Then
-        assertNull("The resulted alexa ranking was not null", result.RANKING());
-    }
-	
-	@Test
-    public void alexaRequestTimeout() throws Exception {
-        // Given
-        IRequest request = new ErrorThrowingRequest(new SocketTimeoutException());
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
-
-        // When
-        result.init();
-
-        // Then
-        assertNull("The resulted alexa ranking was not null", result.RANKING());
-    }
-	
-	@Test
-    public void alexaConnectionError() throws Exception {
-        // Given
-        IRequest request = new ErrorThrowingRequest(new ConnectException());
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
-
-        // When
-        result.init();
-
-        // Then
-        assertNull("The resulted alexa ranking was not null", result.RANKING());
-    }
-	
-    @Ignore
-	@Test
-    public void alexaHTTPError() throws Exception {
-        // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
-
-        // When
-        result.init();
-
-        // Then
-    }
-	
-	@Test
-    public void alexaSuccess() throws Exception {
-        // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
-
-        // When
-        result.init();
-
-        // Then
-        assertEquals("The resulted alexa ranking was wrong", 6845, (int) result.RANKING());
-    }
-
-	@Test
     public void JRR_emptyIntersection() throws Exception {
         // Given
         HashMap<String, Terms> RD = new HashMap<>();
         RD.put("google.com", new Terms(new Term("google.com")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("blabber")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -439,7 +374,7 @@ public class IntersectionResultTest {
     @Test
     public void JRR_emptySets() throws Exception {
         // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -455,7 +390,7 @@ public class IntersectionResultTest {
         RD.put("apple.com", new Terms(new Term("apple", "iphone")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("apple", new Terms(new Term("apple", "juice")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -471,7 +406,7 @@ public class IntersectionResultTest {
         RD.put("google.com", new Terms(new Term("android")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("blubber")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -483,7 +418,7 @@ public class IntersectionResultTest {
     @Test
     public void JRA_emptySets() throws Exception {
         // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -499,7 +434,7 @@ public class IntersectionResultTest {
         RD.put("google.com", new Terms(new Term("android", "google")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("blabber", "android", "ios")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -515,7 +450,7 @@ public class IntersectionResultTest {
         RD.put("google.com", new Terms(new Term("android")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("blubber")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -527,7 +462,7 @@ public class IntersectionResultTest {
     @Test
     public void JAA_emptySets() throws Exception {
         // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -543,7 +478,7 @@ public class IntersectionResultTest {
         RD.put("google.com", new Terms(new Term("google.com", "android", "google")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("blabber", "android", "blubber")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -559,7 +494,7 @@ public class IntersectionResultTest {
         RD.put("google.com", new Terms(new Term("android")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("blubber")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -571,7 +506,7 @@ public class IntersectionResultTest {
     @Test
     public void JAR_emptySets() throws Exception {
         // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -587,7 +522,7 @@ public class IntersectionResultTest {
         RD.put("google.com", new Terms(new Term("google.com", "android", "google")));
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("blabber", new Terms(new Term("android", "blubber")));
-        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -601,7 +536,7 @@ public class IntersectionResultTest {
         // Given
         HashMap<String, Terms> RD = new HashMap<>();
         RD.put("google.com", new Terms(new Term("google")));
-        IntersectionResult result = new IntersectionResult(RD, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -613,7 +548,7 @@ public class IntersectionResultTest {
     @Test
     public void JARRD_emptySets() throws Exception {
         // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -627,7 +562,7 @@ public class IntersectionResultTest {
         // Given
         HashMap<String, Terms> RD = new HashMap<>();
         RD.put("google.com", new Terms(new Term("google.com", "google"), new Term("android")));
-        IntersectionResult result = new IntersectionResult(RD, new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(RD, new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -641,7 +576,7 @@ public class IntersectionResultTest {
         // Given
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("apple", new Terms(new Term("coconut"),new Term("banana")));
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -653,7 +588,7 @@ public class IntersectionResultTest {
     @Test
     public void JARREM_emptySets() throws Exception {
         // Given
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), new HashMap<>(), new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();
@@ -667,7 +602,7 @@ public class IntersectionResultTest {
         // Given
         HashMap<String, Terms> REM = new HashMap<>();
         REM.put("apple", new Terms(new Term("apple", "banana"), new Term("cherry")));
-        IntersectionResult result = new IntersectionResult(new HashMap<>(), REM, new HashMap<>(), new HashMap<>(), request, url, client);
+        IntersectionResult result = new IntersectionResult(new HashMap<>(), REM, new HashMap<>(), new HashMap<>(), ranking);
 
         // When
         result.init();

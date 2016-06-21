@@ -31,10 +31,6 @@ import org.apache.storm.tuple.Values;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisCommands;
 import redis.clients.jedis.exceptions.JedisException;
@@ -72,7 +68,6 @@ public class URLSpout extends BaseRichSpout {
     private transient CountMetric spoutEmitted;
     private transient ReducedMetric spoutListSize;
     private JedisContainer container;
-    private ObjectMapper mapper;
 
 	public URLSpout(String urlDataFile, JedisPoolConfig config) {
 		this.urlDataFile = urlDataFile;
@@ -88,7 +83,6 @@ public class URLSpout extends BaseRichSpout {
         this.decoder = Base64.getDecoder();
         this.urlValidator = new UrlValidator(schemes);
         this.container = (JedisContainer)JedisCommandsContainerBuilder.build(config);
-        this.mapper = new ObjectMapper();
         ackedPublished = new CountMetric();
         context.registerMetric("acked-published",
                                ackedPublished,
@@ -212,11 +206,8 @@ public class URLSpout extends BaseRichSpout {
     private void ackRegular(String URL) {
         String encoded = encoder.encodeToString(URL.getBytes(StandardCharsets.UTF_8));
 	    try (Jedis jedis = (Jedis) getInstance()) {
-	        AckResult result = findAckResult(encoded, jedis);
-	        if (result != null) {
-    	        publish(result);
-    	        save(encoded, jedis);
-	        }
+	        publish(encoded);
+	        save(encoded, jedis);
 	        spoutAcked.incr();
 	    } catch (IOException e) {
 	        logger.error("Acking ["+URL+"] failed", e);
@@ -258,25 +249,11 @@ public class URLSpout extends BaseRichSpout {
         return URL;
     }
 
-    private AckResult findAckResult(String msgId, Jedis jedis)
-            throws IOException, JsonParseException, JsonMappingException {
-        AckResult result = null;
-        String message = jedis.get("acked:"+msgId);
-        if (message != null) {
-            result = mapper.readValue(message, AckResult.class);
-        } else {
-            logger.warn("Could not look up AckResult related to {}. Retrying.", msgId);
-            return null;
-        }
-        return result;
-    }
-    
-    private void publish(AckResult result) throws IOException {
-        String msg = mapper.writeValueAsString(result);
-        logger.info("Publishing [Message={}]", msg);
-        String resmsg = "result://"+msg;
+    private void publish(String URL) throws IOException {
+        logger.info("Publishing [Message={}]", URL);
+        String resmsg = "result://"+URL;
         String encodedMsg = encoder.encodeToString(resmsg.getBytes(StandardCharsets.UTF_8));
-        collector.emit(SUCCESS_STREAM, new Values(msg), encodedMsg);
+        collector.emit(SUCCESS_STREAM, new Values(URL), encodedMsg);
         ackedPublished.incr();
     }
 

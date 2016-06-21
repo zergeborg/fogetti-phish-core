@@ -1,22 +1,14 @@
 package fogetti.phish.storm.relatedness.intersection;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.parser.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import fogetti.phish.storm.client.IRequest;
 import fogetti.phish.storm.client.Term;
 import fogetti.phish.storm.client.Terms;
-import okhttp3.OkHttpClient;
-import okhttp3.Response;
 import orestes.bloomfilter.BloomFilter;
 import orestes.bloomfilter.FilterBuilder;
 
@@ -34,26 +26,19 @@ public class IntersectionResult {
 	private final BloomFilter<String> RELrem = new FilterBuilder(EXPECTED_ELEMENTS, 0.0001).<String>buildBloomFilter();
 	private final BloomFilter<String> ASrd = new FilterBuilder(EXPECTED_ELEMENTS, 0.0001).<String>buildBloomFilter();
 	private final BloomFilter<String> RELrd = new FilterBuilder(EXPECTED_ELEMENTS, 0.0001).<String>buildBloomFilter();
-    private final IRequest alexa;
-    private final String resultUrl;
-    private final OkHttpClient client;
-    private Integer RANKING;
+    private final String ranking;
 
 	public IntersectionResult(
 		Map<String, Terms> RDTermindex,
 		Map<String, Terms> REMTermindex,
 		Map<String, Terms> MLDTermindex,
 		Map<String, Terms> MLDPSTermindex,
-		IRequest alexa,
-		String resultUrl,
-		OkHttpClient client) {
+		String ranking) {
 		this.RDTermindex = RDTermindex;
 		this.REMTermindex = REMTermindex;
 		this.MLDTermindex = MLDTermindex;
 		this.MLDPSTermindex = MLDPSTermindex;
-        this.alexa = alexa;
-        this.resultUrl = resultUrl;
-        this.client = client;
+        this.ranking = ranking;
 	}
 
 	public void init() {
@@ -128,17 +113,6 @@ public class IntersectionResult {
 	}
 
     private void initRanking() {
-        try {
-            Response response = client.newCall(alexa.Get("http://data.alexa.com/data?cli=10&url="+resultUrl)).execute();
-            String xml = response.body().string();
-            Document doc = Jsoup.parse(xml, "", Parser.xmlParser());
-            for (Element e : doc.select("POPULARITY")) {
-                String text = e.attr("TEXT");
-                RANKING = Integer.valueOf(text);
-            }
-        } catch (IOException e) {
-            logger.error("Alexa ranking lookup failed", e);
-        }
     }
 
 	public Double JRR() {
@@ -226,7 +200,7 @@ public class IntersectionResult {
 	}
 	
 	public Integer RANKING() {
-		return RANKING;
+		return Integer.valueOf(ranking);
 	}
 
 	private Double jaccardIndex(BloomFilter<String> first,

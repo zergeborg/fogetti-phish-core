@@ -10,7 +10,6 @@ import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.storm.metric.api.CountMetric;
 import org.apache.storm.redis.bolt.AbstractRedisBolt;
@@ -22,15 +21,12 @@ import org.apache.storm.tuple.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import fogetti.phish.storm.client.Terms;
-import fogetti.phish.storm.client.WrappedRequest;
 import fogetti.phish.storm.relatedness.AckResult;
-import okhttp3.Interceptor;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import redis.clients.jedis.Jedis;
 
 public class ResultBolt extends AbstractRedisBolt {
@@ -41,8 +37,6 @@ public class ResultBolt extends AbstractRedisBolt {
     private String resultDataFile;
     private ObjectMapper mapper;
     private final int METRICS_WINDOW = 10;
-    private int connectTimeout = 10000;
-    private int socketTimeout = 10000;
     private Encoder encoder;
     private transient CountMetric intersectionMsgLookupSuccess;
     private transient CountMetric intersectionMsgLookupFailure;
@@ -90,14 +84,29 @@ public class ResultBolt extends AbstractRedisBolt {
 
     @Override
     public void execute(Tuple input) {
-        String message = input.getString(0);
+        String url = input.getStringByField("url");
+        String ranking = input.getStringByField("ranking");
         try {
-            AckResult result = mapper.readValue(message, AckResult.class);
+            AckResult result = findAckResult(url);
             URLSegments segments = findSegments(result);
-            performIntersection(segments, result, message);
+            performIntersection(segments, result, url, ranking);
             collector.ack(input);
         } catch (Throwable e) {
-            logger.info("Message [{}] failed", message, e);
+            logger.info("Message [{}] failed", url, e);
+        }
+    }
+
+    private AckResult findAckResult(String url) throws IOException, JsonParseException, JsonMappingException {
+        try (Jedis jedis = (Jedis) getInstance()) {
+            AckResult result = null;
+            String message = jedis.get("acked:"+url);
+            if (message != null) {
+                result = mapper.readValue(message, AckResult.class);
+            } else {
+                logger.warn("Could not look up AckResult related to {}", url);
+                return new AckResult();
+            }
+            return result;
         }
     }
 
@@ -120,7 +129,7 @@ public class ResultBolt extends AbstractRedisBolt {
         return null;
     }
 
-    private void performIntersection(URLSegments segments, AckResult result, String message) {
+    private void performIntersection(URLSegments segments, AckResult result, String message, String ranking) {
         if (segments != null) {
             Map<String, Terms> MLDTermindex = segments.getMLDTerms(result);
             Map<String, Terms> MLDPSTermindex = segments.getMLDPSTerms(result);
@@ -128,8 +137,7 @@ public class ResultBolt extends AbstractRedisBolt {
             Map<String, Terms> RDTermindex = segments.getRDTerms(result);
             segments.removeIf(termEntry -> REMTermindex.containsKey(termEntry.getKey()));
             segments.removeIf(termEntry -> RDTermindex.containsKey(termEntry.getKey()));
-            OkHttpClient client = buildClient();
-            IntersectionResult intersection = new IntersectionResult(RDTermindex,REMTermindex,MLDTermindex,MLDPSTermindex, new WrappedRequest(), result.URL, client);
+            IntersectionResult intersection = new IntersectionResult(RDTermindex,REMTermindex,MLDTermindex,MLDPSTermindex,ranking);
             intersection.init();
             logIntersectionResult(intersection, result.URL);
             saveIntersectionResult(intersection, result.URL);
@@ -139,33 +147,6 @@ public class ResultBolt extends AbstractRedisBolt {
             logger.warn("There are no segments for [{}]. Skipping intersection", result.URL);
             intersectionActionSkipped.incr();
         }
-    }
-
-    private OkHttpClient buildClient() {
-        OkHttpClient client
-            = new OkHttpClient
-                .Builder()
-                .connectTimeout(connectTimeout, TimeUnit.MILLISECONDS)
-                .readTimeout(socketTimeout, TimeUnit.MILLISECONDS)
-                .writeTimeout(socketTimeout, TimeUnit.MILLISECONDS)
-                .addInterceptor(new Interceptor() {
-                    @Override
-                    public Response intercept(Chain chain) throws IOException {
-                        Request request = chain.request();
-                        // try the request
-                        Response response = chain.proceed(request);
-                        int tryCount = 0;
-                        while (!response.isSuccessful() && tryCount < 3) {
-                            logger.info("Retry request [{}] was not successful", tryCount);
-                            tryCount++;
-                            // retry the request
-                            response = chain.proceed(request);
-                        }
-                        // otherwise just pass the original response on
-                        return response;
-                    }
-                }).build();
-        return client;
     }
 
     private void logIntersectionResult(IntersectionResult intersection, String URL) {
