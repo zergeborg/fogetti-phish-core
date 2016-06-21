@@ -112,13 +112,16 @@ public class AlexaRankingBolt extends BaseRichBolt {
             Response response = builder.build().newCall(new WrappedRequest().Get("http://data.alexa.com/data?cli=10&url="+URL)).execute();
             String xml = response.body().string();
             Document doc = Jsoup.parse(xml, "", Parser.xmlParser());
-            Elements popularity = doc.select("POPULARITY");
-            if (!popularity.isEmpty()) {
-                for (Element e : popularity) {
-                    ranking = e.attr("TEXT");
+            Elements alexa = doc.select("ALEXA");
+            if (!alexa.isEmpty()) {
+                Elements popularity = doc.select("POPULARITY");
+                if (!popularity.isEmpty()) {
+                    for (Element e : popularity) {
+                        ranking = e.attr("TEXT");
+                    }
+                } else {
+                    ranking = "10000000";
                 }
-            } else {
-                ranking = "10000000";
             }
         } catch (IOException e) {
             logger.error("Alexa ranking lookup failed", e);
