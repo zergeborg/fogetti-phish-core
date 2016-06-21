@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Base64.Decoder;
 import java.util.Base64.Encoder;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ public class MatcherBolt extends AbstractRedisBolt {
     private String psDataFile;
     private AckResult ack;
     private ObjectMapper mapper;
+    private Decoder decoder;
     private Encoder encoder;
     private String[] schemes = {"http","https"};
     private UrlValidator urlValidator;
@@ -70,6 +72,7 @@ public class MatcherBolt extends AbstractRedisBolt {
         super.prepare(stormConf, context, collector);
         this.lookup = readCountFromFile();
         this.mapper = new ObjectMapper();
+        this.decoder = Base64.getDecoder();
         this.encoder = Base64.getEncoder();
         this.urlValidator = new UrlValidator(schemes);
         matcherEmittedRDSegment = new CountMetric();
@@ -117,9 +120,11 @@ public class MatcherBolt extends AbstractRedisBolt {
         try {
             createNewAckResult();
             String encodedURL = input.getStringByField("url");
-            if (urlValidator.isValid(encodedURL)) {
-                ack.URL = encodedURL;
-                calculate(encodedURL);
+            byte[] decoded = decoder.decode(encodedURL);
+            String decodedURL = new String(decoded, StandardCharsets.UTF_8);
+            if (urlValidator.isValid(decodedURL)) {
+                ack.URL = decodedURL;
+                calculate(decodedURL);
                 try (Jedis jedis = (Jedis) getInstance()) {
                     if (saveResult(encodedURL, jedis)) {
                         emit(input, encodedURL, jedis);
