@@ -219,7 +219,7 @@ public class URLSpout extends BaseRichSpout {
 	    try {
 	        String resURL = getURL(encodedURL.toString());
 	        if (resURL.startsWith("result://")) {
-	            resURL = StringUtils.removeStart(resURL, "result://");
+	            resURL = getURL(StringUtils.removeStart(resURL, "result://"));
 	        } else if (resURL.startsWith("intersect://")) {
                 resURL = StringUtils.removeStart(resURL, "intersect://");
             } else {

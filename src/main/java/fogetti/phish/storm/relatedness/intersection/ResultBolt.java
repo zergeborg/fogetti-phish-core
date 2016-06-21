@@ -106,7 +106,7 @@ public class ResultBolt extends AbstractRedisBolt {
                 logger.warn("Could not look up AckResult related to {}", url);
                 return new AckResult();
             }
-            return result;
+            return (result != null) ? result : new AckResult();
         }
     }
 
@@ -116,12 +116,14 @@ public class ResultBolt extends AbstractRedisBolt {
 
     private URLSegments findSegments(AckResult result) {
         try (Jedis jedis = (Jedis) getInstance()) {
-            String encodedURL = encoder.encodeToString(result.URL.getBytes(StandardCharsets.UTF_8));
-            String key = REDIS_INTERSECTION_PREFIX + encodedURL;
-            Map<String, String> rawSegments = jedis.hgetAll(key);
-            URLSegments segments = URLSegments.fromStringMap(rawSegments);
-            intersectionMsgLookupSuccess.incr();
-            return segments;
+            if (result != null && result.URL != null) {
+                String encodedURL = encoder.encodeToString(result.URL.getBytes(StandardCharsets.UTF_8));
+                String key = REDIS_INTERSECTION_PREFIX + encodedURL;
+                Map<String, String> rawSegments = jedis.hgetAll(key);
+                URLSegments segments = URLSegments.fromStringMap(rawSegments);
+                intersectionMsgLookupSuccess.incr();
+                return segments;
+            }
         } catch (IOException e) {
             logger.error("Could not find saved segments", e);
             intersectionMsgLookupFailure.incr();

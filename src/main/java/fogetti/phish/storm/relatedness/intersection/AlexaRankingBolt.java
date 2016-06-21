@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.Base64.Decoder;
+import java.util.Base64.Encoder;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -39,10 +40,11 @@ public class AlexaRankingBolt extends BaseRichBolt {
 
     private static final long serialVersionUID = -8497557061656398615L;
     private static final Logger logger = LoggerFactory.getLogger(AlexaRankingBolt.class);
+    private Encoder encoder;
     private Decoder decoder;
     private OutputCollector collector;
-    private int connectTimeout = 15000;
-    private int socketTimeout = 15000;
+    private int connectTimeout = 5000;
+    private int socketTimeout = 5000;
     private OkHttpClient.Builder builder;
     private String proxyDataFile;
     private List<String> proxyList;
@@ -55,6 +57,7 @@ public class AlexaRankingBolt extends BaseRichBolt {
     @SuppressWarnings("rawtypes")
     public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
         this.collector = collector;
+        this.encoder = Base64.getEncoder();
         this.decoder = Base64.getDecoder();
         this.builder = buildClient();
         try {
@@ -84,7 +87,7 @@ public class AlexaRankingBolt extends BaseRichBolt {
         if (StringUtils.isBlank(ranking)) {
             collector.fail(input);
         } else {
-            collector.emit(input, new Values(URL, ranking));
+            collector.emit(input, new Values(encode(URL), ranking));
             collector.ack(input);
         }
     }
@@ -93,6 +96,11 @@ public class AlexaRankingBolt extends BaseRichBolt {
         byte[] decoded = decoder.decode(input.getStringByField("url"));
         String URL = new String(decoded, StandardCharsets.UTF_8);
         return URL;
+    }
+    
+    private String encode(String URL) {
+        String encodedURL = encoder.encodeToString(URL.getBytes(StandardCharsets.UTF_8));
+        return encodedURL;
     }
     
     private String initRanking(String URL) {
