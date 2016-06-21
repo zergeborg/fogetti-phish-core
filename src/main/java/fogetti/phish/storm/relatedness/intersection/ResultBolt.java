@@ -91,6 +91,7 @@ public class ResultBolt extends AbstractRedisBolt {
             AckResult result = findAckResult(url);
             URLSegments segments = findSegments(result);
             performIntersection(segments, result, url, ranking);
+            save(getEncodedURL(result));
             collector.ack(input);
         } catch (Throwable e) {
             logger.info("Message [{}] failed", url, e);
@@ -118,7 +119,7 @@ public class ResultBolt extends AbstractRedisBolt {
     private URLSegments findSegments(AckResult result) {
         try (Jedis jedis = (Jedis) getInstance()) {
             if (result != null && result.URL != null) {
-                String encodedURL = encoder.encodeToString(result.URL.getBytes(StandardCharsets.UTF_8));
+                String encodedURL = getEncodedURL(result);
                 String key = REDIS_INTERSECTION_PREFIX + encodedURL;
                 Map<String, String> rawSegments = jedis.hgetAll(key);
                 URLSegments segments = URLSegments.fromStringMap(rawSegments);
@@ -130,6 +131,10 @@ public class ResultBolt extends AbstractRedisBolt {
             intersectionMsgLookupFailure.incr();
         }
         return null;
+    }
+
+    private String getEncodedURL(AckResult result) {
+        return encoder.encodeToString(result.URL.getBytes(StandardCharsets.UTF_8));
     }
 
     private void performIntersection(URLSegments segments, AckResult result, String message, String ranking) {
@@ -216,6 +221,13 @@ public class ResultBolt extends AbstractRedisBolt {
             intersectionActionSaved.incr();
         } catch (IOException e) {
             logger.error("Writing the result failed", e);
+        }
+    }
+
+    private void save(String encodedURL) {
+        try (Jedis jedis = (Jedis) getInstance()) {
+            logger.info("Saving [msgId={}]", encodedURL);
+            jedis.rpush("saved:"+encodedURL, encodedURL);
         }
     }
 

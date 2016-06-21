@@ -2,7 +2,6 @@ package fogetti.phish.storm.relatedness;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Base64.Decoder;
@@ -61,7 +60,6 @@ public class URLSpout extends BaseRichSpout {
     private UrlValidator urlValidator;
     private final int METRICS_WINDOW = 10;
     private transient CountMetric ackedPublished;
-    private transient CountMetric ackedSaved;
     private transient CountMetric spoutAcked;
     private transient CountMetric spoutSkipped;
     private transient CountMetric spoutFailed;
@@ -86,10 +84,6 @@ public class URLSpout extends BaseRichSpout {
         ackedPublished = new CountMetric();
         context.registerMetric("acked-published",
                                ackedPublished,
-                               METRICS_WINDOW);
-        ackedSaved = new CountMetric();
-        context.registerMetric("acked-saved",
-                               ackedSaved,
                                METRICS_WINDOW);
         spoutAcked = new CountMetric();
         context.registerMetric("spout-acked",
@@ -205,26 +199,14 @@ public class URLSpout extends BaseRichSpout {
 
     private void ackRegular(String URL) {
         String encoded = encoder.encodeToString(URL.getBytes(StandardCharsets.UTF_8));
-	    try (Jedis jedis = (Jedis) getInstance()) {
-	        publish(encoded);
-	        save(encoded, jedis);
-	        spoutAcked.incr();
-	    } catch (IOException e) {
-	        logger.error("Acking ["+URL+"] failed", e);
-        }
+        publish(encoded);
+        spoutAcked.incr();
     }
 
 	@Override
 	public void fail(Object encodedURL) {
 	    try {
-	        String resURL = getURL(encodedURL.toString());
-	        if (resURL.startsWith("result://")) {
-	            resURL = getURL(StringUtils.removeStart(resURL, "result://"));
-	        } else if (resURL.startsWith("intersect://")) {
-                resURL = StringUtils.removeStart(resURL, "intersect://");
-            } else {
-                resURL = removeTail(resURL);
-            }
+	        String resURL = stripURL(encodedURL);
 	        logger.debug("Message [msg={}] failed", resURL);
 	        if (urlValidator.isValid(resURL)) {
 	            logger.warn("Requeueing [msg={}]", resURL);
@@ -238,6 +220,18 @@ public class URLSpout extends BaseRichSpout {
 		spoutFailed.incr();
 	}
 
+    private String stripURL(Object encodedURL) {
+        String resURL = getURL(encodedURL.toString());
+        if (resURL.startsWith("result://")) {
+            resURL = getURL(StringUtils.removeStart(resURL, "result://"));
+        } else if (resURL.startsWith("intersect://")) {
+            resURL = StringUtils.removeStart(resURL, "intersect://");
+        } else {
+            resURL = removeTail(resURL);
+        }
+        return resURL;
+    }
+
     private String getURL(String encodedURL) {
         byte[] decoded = decoder.decode(encodedURL);
         String longURL = new String(decoded, StandardCharsets.UTF_8);
@@ -249,18 +243,12 @@ public class URLSpout extends BaseRichSpout {
         return URL;
     }
 
-    private void publish(String URL) throws IOException {
+    private void publish(String URL) {
         logger.info("Publishing [Message={}]", URL);
         String resmsg = "result://"+URL;
         String encodedMsg = encoder.encodeToString(resmsg.getBytes(StandardCharsets.UTF_8));
         collector.emit(SUCCESS_STREAM, new Values(URL), encodedMsg);
         ackedPublished.incr();
-    }
-
-    private void save(String encodedURL, Jedis jedis) {
-        logger.info("Saving [msgId={}]", encodedURL);
-        jedis.rpush("saved:"+encodedURL, encodedURL);
-        ackedSaved.incr();
     }
 
     /**     
