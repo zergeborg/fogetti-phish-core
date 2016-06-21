@@ -182,14 +182,13 @@ public class MatcherBolt extends AbstractRedisBolt {
 
     private boolean saveResult(String decodedURL, Jedis jedis) {
         try {
-            String encodedURL = encoder.encodeToString(decodedURL.getBytes(StandardCharsets.UTF_8));
-            String message = jedis.get("acked:"+encodedURL);
+            String message = jedis.get("acked:"+decodedURL);
             if (StringUtils.isBlank(message)) {
                 String result = mapper.writeValueAsString(ack);
                 logger.info("Saving [AckResult={}]", result);
-                jedis.set("acked:"+encodedURL, result);
+                jedis.set("acked:"+decodedURL, result);
             } else {
-                logger.info("Skipping AckResult saving for [{}]. Current AckResult [{}]", encodedURL, message);
+                logger.info("Skipping AckResult saving for [{}]. Current AckResult [{}]", decodedURL, message);
             }
         } catch (JsonProcessingException e) {
             logger.error("Could not save AckResult", e);
