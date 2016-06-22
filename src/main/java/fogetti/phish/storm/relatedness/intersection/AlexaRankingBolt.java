@@ -17,10 +17,11 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.storm.redis.bolt.AbstractRedisBolt;
+import org.apache.storm.redis.common.config.JedisPoolConfig;
 import org.apache.storm.task.OutputCollector;
 import org.apache.storm.task.TopologyContext;
 import org.apache.storm.topology.OutputFieldsDeclarer;
-import org.apache.storm.topology.base.BaseRichBolt;
 import org.apache.storm.tuple.Fields;
 import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
@@ -35,8 +36,9 @@ import org.slf4j.LoggerFactory;
 import fogetti.phish.storm.client.WrappedRequest;
 import okhttp3.OkHttpClient;
 import okhttp3.Response;
+import redis.clients.jedis.Jedis;
 
-public class AlexaRankingBolt extends BaseRichBolt {
+public class AlexaRankingBolt extends AbstractRedisBolt {
 
     private static final long serialVersionUID = -8497557061656398615L;
     private static final Logger logger = LoggerFactory.getLogger(AlexaRankingBolt.class);
@@ -49,13 +51,15 @@ public class AlexaRankingBolt extends BaseRichBolt {
     private String proxyDataFile;
     private List<String> proxyList;
     
-    public AlexaRankingBolt(String proxyDataFile) {
+    public AlexaRankingBolt(JedisPoolConfig config, String proxyDataFile) {
+        super(config);
         this.proxyDataFile = proxyDataFile;
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public void prepare(Map stormConf, TopologyContext context, OutputCollector collector) {
+        super.prepare(stormConf, context, collector);
         this.collector = collector;
         this.encoder = Base64.getEncoder();
         this.decoder = Base64.getDecoder();
@@ -106,21 +110,24 @@ public class AlexaRankingBolt extends BaseRichBolt {
     }
     
     private String initRanking(String URL) {
-        String ranking = "";
+        String ranking = findCachedRanking(URL);
         try {
-            builder.proxy(buildProxy());
-            Response response = builder.build().newCall(new WrappedRequest().Get("http://data.alexa.com/data?cli=10&url="+URL)).execute();
-            String xml = response.body().string();
-            Document doc = Jsoup.parse(xml, "", Parser.xmlParser());
-            Elements alexa = doc.select("ALEXA");
-            if (!alexa.isEmpty()) {
-                Elements popularity = doc.select("POPULARITY");
-                if (!popularity.isEmpty()) {
-                    for (Element e : popularity) {
-                        ranking = e.attr("TEXT");
+            if (StringUtils.isBlank(ranking)) {
+                builder.proxy(buildProxy());
+                Response response = builder.build().newCall(new WrappedRequest().Get("http://data.alexa.com/data?cli=10&url="+URL)).execute();
+                String xml = response.body().string();
+                Document doc = Jsoup.parse(xml, "", Parser.xmlParser());
+                Elements alexa = doc.select("ALEXA");
+                if (!alexa.isEmpty()) {
+                    Elements popularity = doc.select("POPULARITY");
+                    if (!popularity.isEmpty()) {
+                        for (Element e : popularity) {
+                            ranking = e.attr("TEXT");
+                        }
+                    } else {
+                        ranking = "10000000";
                     }
-                } else {
-                    ranking = "10000000";
+                    cacheRanking(URL, ranking);
                 }
             }
         } catch (IOException e) {
@@ -129,6 +136,23 @@ public class AlexaRankingBolt extends BaseRichBolt {
         return ranking;
     }
     
+    private String findCachedRanking(String URL) {
+        try (Jedis jedis = (Jedis) getInstance()) {
+            String registeredURL = findRegisteredURL(URL);
+            String ranking = jedis.get("alexa:"+encode(registeredURL));
+            logger.info("Found Alexa ranking [{}] for URL [{}]", ranking, URL);
+            return ranking;
+        }
+    }
+
+    private String findRegisteredURL(String URL) {
+        String[] urlParts = URL.split("//");
+        String protocol = urlParts[0];
+        String URLPostFix = urlParts[1];
+        String URLPrefix = StringUtils.substringBefore(URLPostFix, "/");
+        return protocol+"//"+URLPrefix;
+    }
+
     private Proxy buildProxy() throws UnknownHostException {
         int nextPick = new Random().nextInt(proxyList.size());
         String nextProxy = proxyList.get(nextPick);
@@ -136,6 +160,14 @@ public class AlexaRankingBolt extends BaseRichBolt {
         String host = hostAndPort[0];
         int port = Integer.parseInt(hostAndPort[1]);
         return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getByName(host), port));
+    }
+
+    private void cacheRanking(String URL, String ranking) {
+        try (Jedis jedis = (Jedis) getInstance()) {
+            String registeredURL = findRegisteredURL(URL);
+            jedis.set("alexa:"+encode(registeredURL), ranking);
+            logger.info("Cached Alexa ranking [{}] for URL [{}]", ranking, URL);
+        }
     }
 
     @Override

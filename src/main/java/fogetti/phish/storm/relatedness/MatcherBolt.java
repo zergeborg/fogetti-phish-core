@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Base64.Decoder;
-import java.util.Base64.Encoder;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -47,7 +46,6 @@ public class MatcherBolt extends AbstractRedisBolt {
     private AckResult ack;
     private ObjectMapper mapper;
     private Decoder decoder;
-    private Encoder encoder;
     private String[] schemes = {"http","https"};
     private UrlValidator urlValidator;
     private transient CountMetric matcherEmittedRDSegment;
@@ -73,7 +71,6 @@ public class MatcherBolt extends AbstractRedisBolt {
         this.lookup = readCountFromFile();
         this.mapper = new ObjectMapper();
         this.decoder = Base64.getDecoder();
-        this.encoder = Base64.getEncoder();
         this.urlValidator = new UrlValidator(schemes);
         matcherEmittedRDSegment = new CountMetric();
         context.registerMetric("match-emitted-rd-segment",
