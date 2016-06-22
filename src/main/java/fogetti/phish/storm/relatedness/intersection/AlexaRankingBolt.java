@@ -1,20 +1,13 @@
 package fogetti.phish.storm.relatedness.intersection;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
-import java.net.UnknownHostException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.security.SignatureException;
 import java.util.Base64;
 import java.util.Base64.Decoder;
 import java.util.Base64.Encoder;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.storm.redis.bolt.AbstractRedisBolt;
@@ -27,33 +20,29 @@ import org.apache.storm.tuple.Tuple;
 import org.apache.storm.tuple.Values;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
 import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import fogetti.phish.storm.client.WrappedRequest;
-import okhttp3.OkHttpClient;
-import okhttp3.Response;
 import redis.clients.jedis.Jedis;
 
 public class AlexaRankingBolt extends AbstractRedisBolt {
 
     private static final long serialVersionUID = -8497557061656398615L;
     private static final Logger logger = LoggerFactory.getLogger(AlexaRankingBolt.class);
+    private static final String SERVICE_HOST = "awis.amazonaws.com";
+    private static final String AWS_BASE_URL = "http://" + SERVICE_HOST + "/?";
+    private final String accessKey;
+    private final String secretKey;
     private Encoder encoder;
     private Decoder decoder;
     private OutputCollector collector;
-    private int connectTimeout = 5000;
-    private int socketTimeout = 5000;
-    private OkHttpClient.Builder builder;
-    private String proxyDataFile;
-    private List<String> proxyList;
     
-    public AlexaRankingBolt(JedisPoolConfig config, String proxyDataFile) {
+    public AlexaRankingBolt(JedisPoolConfig config, String accessKey, String secretKey) {
         super(config);
-        this.proxyDataFile = proxyDataFile;
+        this.accessKey = accessKey;
+        this.secretKey = secretKey;
     }
 
     @Override
@@ -63,25 +52,6 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
         this.collector = collector;
         this.encoder = Base64.getEncoder();
         this.decoder = Base64.getDecoder();
-        this.builder = buildClient();
-        try {
-            this.proxyList = Files.readAllLines(Paths.get(proxyDataFile));
-        } catch (IOException e) {
-            logger.error("Preparing the Google SEM bolt failed", e);
-        }
-    }
-
-    private OkHttpClient.Builder buildClient() {
-        OkHttpClient.Builder builder
-            = new OkHttpClient
-                .Builder()
-                .connectTimeout(connectTimeout, TimeUnit.MILLISECONDS)
-                .readTimeout(socketTimeout, TimeUnit.MILLISECONDS)
-                .writeTimeout(socketTimeout, TimeUnit.MILLISECONDS)
-                .retryOnConnectionFailure(true)
-                .followRedirects(true)
-                .followSslRedirects(true);
-        return builder;
     }
 
     @Override
@@ -113,24 +83,25 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
         String ranking = findCachedRanking(URL);
         try {
             if (StringUtils.isBlank(ranking)) {
-                builder.proxy(buildProxy());
-                Response response = builder.build().newCall(new WrappedRequest().Get("http://data.alexa.com/data?cli=10&url="+URL)).execute();
-                String xml = response.body().string();
-                Document doc = Jsoup.parse(xml, "", Parser.xmlParser());
-                Elements alexa = doc.select("ALEXA");
-                if (!alexa.isEmpty()) {
-                    Elements popularity = doc.select("POPULARITY");
-                    if (!popularity.isEmpty()) {
-                        for (Element e : popularity) {
-                            ranking = e.attr("TEXT");
-                        }
-                    } else {
-                        ranking = "10000000";
-                    }
-                    cacheRanking(URL, ranking);
+                UrlInfo urlInfo = new UrlInfo(accessKey, secretKey, URL);
+                String query = urlInfo.buildQuery();
+                String toSign = "GET\n" + SERVICE_HOST + "\n/\n" + query;
+                String signature = urlInfo.generateSignature(toSign);
+                String uri = AWS_BASE_URL + query + "&Signature=" + URLEncoder.encode(signature, "UTF-8");
+                String xmlResponse = urlInfo.makeRequest(uri);
+
+                Document doc = Jsoup.parse(xmlResponse, "", Parser.xmlParser());
+                Elements rank = doc.select("aws|Rank");
+                if (!rank.isEmpty()) {
+                    ranking = rank.text();
+                } else {
+                    ranking = "10000000";
                 }
+                cacheRanking(URL, ranking);
             }
         } catch (IOException e) {
+            logger.error("Alexa ranking lookup failed", e);
+        } catch (SignatureException e) {
             logger.error("Alexa ranking lookup failed", e);
         }
         return ranking;
@@ -151,15 +122,6 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
         String URLPostFix = urlParts[1];
         String URLPrefix = StringUtils.substringBefore(URLPostFix, "/");
         return protocol+"//"+URLPrefix;
-    }
-
-    private Proxy buildProxy() throws UnknownHostException {
-        int nextPick = new Random().nextInt(proxyList.size());
-        String nextProxy = proxyList.get(nextPick);
-        String[] hostAndPort = nextProxy.split(":");
-        String host = hostAndPort[0];
-        int port = Integer.parseInt(hostAndPort[1]);
-        return new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getByName(host), port));
     }
 
     private void cacheRanking(String URL, String ranking) {
