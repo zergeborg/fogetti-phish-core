@@ -63,6 +63,7 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
         if (StringUtils.isBlank(ranking)) {
             collector.fail(input);
         } else {
+            cacheRanking(URL, ranking);
             collector.emit(input, new Values(encode(URL), ranking));
             collector.ack(input);
         }
@@ -97,7 +98,6 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
                 } else {
                     ranking = "10000000";
                 }
-                cacheRanking(URL, ranking);
             }
         } catch (IOException e) {
             logger.error("Alexa ranking lookup failed", e);
