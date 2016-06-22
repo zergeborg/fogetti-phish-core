@@ -90,7 +90,7 @@ public class ResultBolt extends AbstractRedisBolt {
         try {
             AckResult result = findAckResult(url);
             URLSegments segments = findSegments(result);
-            performIntersection(segments, result, url, ranking);
+            performIntersection(segments, result, url, ranking, getEncodedURL(result));
             save(getEncodedURL(result));
             collector.ack(input);
         } catch (Throwable e) {
@@ -137,8 +137,8 @@ public class ResultBolt extends AbstractRedisBolt {
         return encoder.encodeToString(result.URL.getBytes(StandardCharsets.UTF_8));
     }
 
-    private void performIntersection(URLSegments segments, AckResult result, String message, String ranking) {
-        if (segments != null) {
+    private void performIntersection(URLSegments segments, AckResult result, String message, String ranking, String encodedURL) {
+        if (segments != null && !saved(encodedURL)) {
             Map<String, Terms> MLDTermindex = segments.getMLDTerms(result);
             Map<String, Terms> MLDPSTermindex = segments.getMLDPSTerms(result);
             Map<String, Terms> REMTermindex = segments.getREMTerms(result);
@@ -229,6 +229,14 @@ public class ResultBolt extends AbstractRedisBolt {
             logger.info("Saving [msgId={}]", encodedURL);
             jedis.rpush("saved:"+encodedURL, encodedURL);
         }
+    }
+
+    private boolean saved(String encodedURL) {
+        try (Jedis jedis = (Jedis) getInstance()) {
+            List<String> messages = jedis.lrange("saved:"+encodedURL, 0L, 0L);
+            if (messages != null && !messages.isEmpty()) return true;
+        }
+        return false;
     }
 
 }
