@@ -234,7 +234,10 @@ public class ResultBolt extends AbstractRedisBolt {
     private boolean saved(String encodedURL) {
         try (Jedis jedis = (Jedis) getInstance()) {
             List<String> messages = jedis.lrange("saved:"+encodedURL, 0L, 0L);
-            if (messages != null && !messages.isEmpty()) return true;
+            if (messages != null && !messages.isEmpty()) {
+                logger.info("Skipping saving URL [{}]. It has been already saved", encodedURL);
+                return true;
+            }
         }
         return false;
     }
