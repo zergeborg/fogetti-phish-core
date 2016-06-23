@@ -83,7 +83,7 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
     private String initRanking(String URL) {
         String ranking = findCachedRanking(URL);
         try {
-            if (StringUtils.isBlank(ranking)) {
+            if (StringUtils.isBlank(ranking) || "null".equals(ranking)) {
                 UrlInfo urlInfo = new UrlInfo(accessKey, secretKey, URL);
                 String query = urlInfo.buildQuery();
                 String toSign = "GET\n" + SERVICE_HOST + "\n/\n" + query;
@@ -93,7 +93,7 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
 
                 Document doc = Jsoup.parse(xmlResponse, "", Parser.xmlParser());
                 Elements rank = doc.select("aws|Rank");
-                if (!rank.isEmpty()) {
+                if (rank.hasText()) {
                     ranking = rank.text();
                 } else {
                     ranking = "10000000";
