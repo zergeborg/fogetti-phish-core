@@ -6,13 +6,17 @@ import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
-import java.security.SignatureException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 import java.util.Calendar;
-import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.TimeZone;
 import java.util.TreeMap;
 
@@ -30,68 +34,113 @@ import org.jsoup.select.Elements;
 public class UrlInfo {
 
     private static final String ACTION_NAME = "UrlInfo";
-    private static final String RESPONSE_GROUP_NAME = "Rank,LinksInCount";
+    private static final String RESPONSE_GROUP_NAME = "Rank";
     private static final String SERVICE_HOST = "awis.amazonaws.com";
-    private static final String AWS_BASE_URL = "http://" + SERVICE_HOST + "/?";
-    private static final String HASH_ALGORITHM = "HmacSHA256";
+    private static final String UTF8_CHARSET = "UTF-8";
+    private static final String HMAC_SHA256_ALGORITHM = "HmacSHA256";
+    private static final String REQUEST_METHOD = "GET";
 
-    private static final String DATEFORMAT_AWS = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
-
-    private String accessKeyId;
-    private String secretAccessKey;
+    private final String awsAccessKeyId;
+    private final String awsSecretKey;
     private String site;
 
-    public UrlInfo(String accessKeyId, String secretAccessKey, String site) {
-        this.accessKeyId = accessKeyId;
-        this.secretAccessKey = secretAccessKey;
+    private final SecretKeySpec secretKeySpec;
+    private final Mac mac;
+    private final Encoder encoder = Base64.getEncoder();
+
+    public UrlInfo(String accessKey, String secretKey, String site) throws IOException, NoSuchAlgorithmException, InvalidKeyException {
+        this.awsAccessKeyId = accessKey;
+        this.awsSecretKey = secretKey;
         this.site = site;
+        byte[] secretyKeyBytes = awsSecretKey.getBytes(UTF8_CHARSET);
+        this.secretKeySpec = new SecretKeySpec(secretyKeyBytes, HMAC_SHA256_ALGORITHM);
+        this.mac = Mac.getInstance(HMAC_SHA256_ALGORITHM);
+        this.mac.init(secretKeySpec);
     }
 
-    /**
-     * Generates a timestamp for use with AWS request signing
-     *
-     * @param date current date
-     * @return timestamp
-     */
-    protected static String getTimestampFromLocalTime(Date date) {
-        SimpleDateFormat format = new SimpleDateFormat(DATEFORMAT_AWS);
-        format.setTimeZone(TimeZone.getTimeZone("GMT"));
-        return format.format(date);
+    public String sign(Map<String, String> params) {
+        params.put("AWSAccessKeyId", awsAccessKeyId);
+        params.put("Action", ACTION_NAME);
+        params.put("ResponseGroup", RESPONSE_GROUP_NAME);
+        params.put("SignatureMethod", HMAC_SHA256_ALGORITHM);
+        params.put("SignatureVersion", "2");
+        params.put("Timestamp", timestamp());
+        params.put("Url", site);
+
+        SortedMap<String, String> sortedParamMap =
+                new TreeMap<String, String>(params);
+        String canonicalQS = canonicalize(sortedParamMap);
+        String toSign =
+                REQUEST_METHOD + "\n"
+                        + SERVICE_HOST + "\n"
+                        + "/" + "\n"
+                        + canonicalQS;
+
+        String hmac = hmac(toSign);
+        String sig = percentEncodeRfc3986(hmac);
+        String url = "http://" + SERVICE_HOST + "?" +
+                canonicalQS + "&Signature=" + sig;
+
+        return url;
     }
 
-    /**
-     * Computes RFC 2104-compliant HMAC signature.
-     *
-     * @param data The data to be signed.
-     * @return The base64-encoded RFC 2104-compliant HMAC signature.
-     * @throws java.security.SignatureException
-     *          when signature generation fails
-     */
-    protected String generateSignature(String data)
-            throws java.security.SignatureException {
-        String result;
+    private String hmac(String stringToSign) {
+        String signature = null;
+        byte[] data;
+        byte[] rawHmac;
         try {
-            // get a hash key from the raw key bytes
-            SecretKeySpec signingKey = new SecretKeySpec(
-                    secretAccessKey.getBytes(), HASH_ALGORITHM);
-
-            // get a hasher instance and initialize with the signing key
-            Mac mac = Mac.getInstance(HASH_ALGORITHM);
-            mac.init(signingKey);
-
-            // compute the hmac on input data bytes
-            byte[] rawHmac = mac.doFinal(data.getBytes());
-
-            // base64-encode the hmac
-            // result = Encoding.EncodeBase64(rawHmac);
-            Encoder encoder = Base64.getEncoder();
-            result = encoder.encodeToString(rawHmac);
-
-        } catch (Exception e) {
-            throw new SignatureException("Failed to generate HMAC : "
-                    + e.getMessage());
+            data = stringToSign.getBytes(UTF8_CHARSET);
+            rawHmac = mac.doFinal(data);
+            signature = encoder.encodeToString(rawHmac);
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(UTF8_CHARSET + " is unsupported!", e);
         }
-        return result;
+        return signature;
+    }
+
+    private String timestamp() {
+        String timestamp = null;
+        Calendar cal = Calendar.getInstance();
+        DateFormat dfm = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        dfm.setTimeZone(TimeZone.getTimeZone("GMT"));
+        timestamp = dfm.format(cal.getTime());
+        return timestamp;
+    }
+
+    private String canonicalize(SortedMap<String, String> sortedParamMap)
+    {
+        if (sortedParamMap.isEmpty()) {
+            return "";
+        }
+
+        StringBuffer buffer = new StringBuffer();
+        Iterator<Map.Entry<String, String>> iter =
+                sortedParamMap.entrySet().iterator();
+
+        while (iter.hasNext()) {
+            Map.Entry<String, String> kvpair = iter.next();
+            buffer.append(percentEncodeRfc3986(kvpair.getKey()));
+            buffer.append("=");
+            buffer.append(percentEncodeRfc3986(kvpair.getValue()));
+            if (iter.hasNext()) {
+                buffer.append("&");
+            }
+        }
+        String canonical = buffer.toString();
+        return canonical;
+    }
+
+    private String percentEncodeRfc3986(String s) {
+        String out;
+        try {
+            out = URLEncoder.encode(s, UTF8_CHARSET)
+                    .replace("+", "%20")
+                    .replace("*", "%2A")
+                    .replace("%7E", "~");
+        } catch (UnsupportedEncodingException e) {
+            out = s;
+        }
+        return out;
     }
 
     /**
@@ -120,37 +169,6 @@ public class UrlInfo {
         return sb.toString();
     }
 
-
-    /**
-     * Builds the query string
-     */
-    protected String buildQuery()
-            throws UnsupportedEncodingException {
-        String timestamp = getTimestampFromLocalTime(Calendar.getInstance().getTime());
-
-        Map<String, String> queryParams = new TreeMap<String, String>();
-        queryParams.put("Action", ACTION_NAME);
-        queryParams.put("ResponseGroup", RESPONSE_GROUP_NAME);
-        queryParams.put("AWSAccessKeyId", accessKeyId);
-        queryParams.put("Timestamp", timestamp);
-        queryParams.put("Url", site);
-        queryParams.put("SignatureVersion", "2");
-        queryParams.put("SignatureMethod", HASH_ALGORITHM);
-
-        String query = "";
-        boolean first = true;
-        for (String name : queryParams.keySet()) {
-            if (first)
-                first = false;
-            else
-                query += "&";
-
-            query += name + "=" + URLEncoder.encode(queryParams.get(name), "UTF-8");
-        }
-
-        return query;
-    }
-
     /**
      * Makes a request to the Alexa Web Information Service UrlInfo action
      */
@@ -158,7 +176,7 @@ public class UrlInfo {
 
         if (args.length < 3) {
             System.err.println("Usage: UrlInfo ACCESS_KEY_ID " +
-                               "SECRET_ACCESS_KEY site");
+                    "SECRET_ACCESS_KEY site");
             System.exit(-1);
         }
 
@@ -170,17 +188,7 @@ public class UrlInfo {
 
         UrlInfo urlInfo = new UrlInfo(accessKey, secretKey, site);
 
-        String query = urlInfo.buildQuery();
-
-        String toSign = "GET\n" + SERVICE_HOST + "\n/\n" + query;
-
-        System.out.println("String to sign:\n" + toSign + "\n");
-
-        String signature = urlInfo.generateSignature(toSign);
-
-        String uri = AWS_BASE_URL + query + "&Signature=" +
-                URLEncoder.encode(signature, "UTF-8");
-
+        String uri = urlInfo.sign(new HashMap<>());
         System.out.println("Making request to:\n");
         System.out.println(uri + "\n");
 

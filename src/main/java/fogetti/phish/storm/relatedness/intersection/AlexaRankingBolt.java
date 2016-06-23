@@ -1,12 +1,13 @@
 package fogetti.phish.storm.relatedness.intersection;
 
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.SignatureException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Base64.Decoder;
 import java.util.Base64.Encoder;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
@@ -31,8 +32,6 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
 
     private static final long serialVersionUID = -8497557061656398615L;
     private static final Logger logger = LoggerFactory.getLogger(AlexaRankingBolt.class);
-    private static final String SERVICE_HOST = "awis.amazonaws.com";
-    private static final String AWS_BASE_URL = "http://" + SERVICE_HOST + "/?";
     private final String accessKey;
     private final String secretKey;
     private Encoder encoder;
@@ -85,10 +84,7 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
         try {
             if (StringUtils.isBlank(ranking) || "null".equals(ranking)) {
                 UrlInfo urlInfo = new UrlInfo(accessKey, secretKey, URL);
-                String query = urlInfo.buildQuery();
-                String toSign = "GET\n" + SERVICE_HOST + "\n/\n" + query;
-                String signature = urlInfo.generateSignature(toSign);
-                String uri = AWS_BASE_URL + query + "&Signature=" + URLEncoder.encode(signature, "UTF-8");
+                String uri = urlInfo.sign(new HashMap<>());
                 String xmlResponse = urlInfo.makeRequest(uri);
 
                 Document doc = Jsoup.parse(xmlResponse, "", Parser.xmlParser());
@@ -101,7 +97,9 @@ public class AlexaRankingBolt extends AbstractRedisBolt {
             }
         } catch (IOException e) {
             logger.error("Alexa ranking lookup failed", e);
-        } catch (SignatureException e) {
+        } catch (InvalidKeyException e) {
+            logger.error("Alexa ranking lookup failed", e);
+        } catch (NoSuchAlgorithmException e) {
             logger.error("Alexa ranking lookup failed", e);
         }
         return ranking;
